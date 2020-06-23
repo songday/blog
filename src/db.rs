@@ -1,14 +1,19 @@
 use std::env;
+use std::time::SystemTime;
 
+use sqlx::prelude::*;
 use sqlx::SqlitePool;
-use sqlx_core::sqlite::SqliteQueryAs;
+use warp::reject;
 
-use crate::result::{Result, Err};
+use crate::model::{Blog, User};
+use crate::result::{Result, Error, ErrorResponse};
 
 type SqliteConnPool = sqlx::Pool<sqlx::sqlite::SqliteConnection>;
 
+#[derive(Clone)]
 pub struct DataSource {
-    sled: sled::Db,
+    user: sled::Db,
+    blog: sled::Db,
     sqlite: SqliteConnPool,
 }
 
@@ -20,49 +25,45 @@ struct Id {
 pub async fn get_datasource() -> Result<DataSource> {
     let p = SqlitePool::builder().min_size(5).max_size(50).build(&env::var("DATABASE_URL")?).await?;
     Ok(DataSource {
-        sled: sled::open("db/data.db").expect("open"),
+        user: sled::open("db/user.db").expect("open"),
+        blog: sled::open("db/blog.db").expect("open"),
         sqlite: p,
     })
 }
 
-pub async fn sled_id(d: &DataSource) -> Result<u64> {
-    match d.sled.generate_id() {
-        sled::Result::Ok(id) => Result::Ok(id),
-        sled::Result::Err(e) => {
-            eprintln!("{:?}", e);
-            Result::Err(Err::new("failed to create id"))
-        },
-    }
+async fn sled_gen_id(db: &sled::Db) -> Result<u64> {
+    db.generate_id().map_err(|e| Error::SledGenIdFailed)
 }
 
-async fn sled_save_data(d: &DataSource, key: impl AsRef<[u8]>, value: &str) -> Result<usize> {
-    d.sled.insert(key, value)?;
-    let r = d.sled.flush_async().await;
-    match r {
-        Ok(u) => Result::Ok(u),
-        Err(e) => {
-            eprintln!("{:?}", e);
-            Result::Err(Err::new("save data failed"))
-        },
-    }
+#[inline]
+async fn sled_save(db: &sled::Db, key: impl AsRef<[u8]>, value: &str) -> Result<usize> {
+    db.insert(key, value)?;
+    db.flush_async().await.map_err(|e| Error::SledDbError)
 }
 
-pub async fn sled_save(d: &DataSource, key: u64, value: &str) -> Result<usize> {
-    sled_save_data(d, key.to_le_bytes(), value).await
-}
-
-pub async fn sled_get<T>(d: &DataSource, key: u64) -> Result<Option<T>> where T:serde::de::DeserializeOwned {
-    if let Some(d) = d.sled.get(key.to_le_bytes())? {
-        let b: T = serde_json::from_slice(d.as_ref())?;
+async fn sled_get<T>(db: &sled::Db, key: impl AsRef<[u8]>) -> Result<Option<T>> where T:serde::de::DeserializeOwned {
+    if let Some(data) = db.get(key)? {
+        let b: T = serde_json::from_slice(data.as_ref())?;
         return Ok(Some(b))
     }
     Ok(None)
 }
 
-async fn sqlite_get_data(d: &DataSource) -> Result<Vec<i64>> {
+async fn sled_get_list<T>(db: &sled::Db, id_array: &Vec<i64>) -> Result<Vec<T>> where T:serde::de::DeserializeOwned {
+    let mut list: Vec<T> = Vec::with_capacity(id_array.len());
+    for id in id_array {
+        if let Some(data) = db.get(id.to_le_bytes())? {
+            let b: T = serde_json::from_slice(data.as_ref())?;
+            list.push(b);
+        }
+    }
+    Ok(list)
+}
+
+async fn sqlite_get_blog_id_array(pool: &SqliteConnPool, page_num: i32) -> Result<Vec<i64>> {
     // let rows: Vec<Id> = sqlx::query_as!(Id, "SELECT id FROM blog ORDER BY id").fetch_all(&d.sqlite).await?;
-    let mut conn = d.sqlite.acquire().await?;
-    let rows = sqlx::query_as::<_, Id>("SELECT id FROM blog ORDER BY id").fetch_all(&mut conn).await?;
+    // let mut conn = d.sqlite.acquire().await?;
+    let rows = sqlx::query_as::<_, Id>("SELECT id FROM blog LIMIT ?,? ORDER BY id").fetch_all(pool).await?;
     let mut d: Vec<i64> = Vec::with_capacity(rows.len());
     for row in rows {
         println!(
@@ -74,9 +75,38 @@ async fn sqlite_get_data(d: &DataSource) -> Result<Vec<i64>> {
     Result::Ok(d)
 }
 
-async fn sqlite_save_data() -> Result<()> {
-    use sqlx::Connect;
-    let mut conn = sqlx::SqliteConnection::connect("sqlite://./db/test.db").await?;
-    let _effected_row = sqlx::query("SELECT * FROM tbl").execute(&mut conn).await?;
-    Result::Ok(())
+impl DataSource {
+    pub async fn user_login(&self, username: &str, password: &str) -> Result<User> {
+        let r: Option<User> = sled_get(&self.user, username).await?;
+        if r.is_none() {
+            return Err(Error::LoginFailed);
+        }
+        let u = r.unwrap();
+        if u.password == password {
+            Ok(u)
+        } else {
+            Err(Error::LoginFailed)
+        }
+    }
+
+    pub async fn blog_list(&self, page_num: i32) -> Result<Vec<Blog>> {
+        let id_array = sqlite_get_blog_id_array(&self.sqlite, page_num).await?;
+        sled_get_list(&self.blog, &id_array).await
+    }
+
+    pub async fn blog_save(&self, blog: &mut Blog) -> Result<usize> {
+        blog.id = sled_gen_id(&self.blog).await?;
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
+        blog.created_at = now.unwrap().as_secs() as i64;
+
+        // save to sqlite
+        let _effected_row = sqlx::query("INSERT INTO blog(title,content,created_at)VALUES(?,?,?)")
+            .bind(&blog.title).bind(&blog.content).bind(&blog.created_at)
+            .execute(&self.sqlite).await?;
+
+        // save to sled
+        // let b: Option<Blog> = sled_get(d, 100).await?;
+        let serialized = serde_json::to_string(blog).unwrap();
+        sled_save(&self.blog, blog.id.to_le_bytes(), &serialized).await
+    }
 }

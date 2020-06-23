@@ -1,72 +1,86 @@
-use sqlx::Error;
-use serde::export::Formatter;
+use serde::{export::Formatter, Serialize, Deserialize};
+use warp::reject::Reject;
 
-pub type Result<T> = std::result::Result<T, Err>;
+pub type Result<T> = std::result::Result<T, Error>;
 // pub type AsyncResult<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Debug)]
-pub struct Err {
+pub enum Error {
+    // system
+    EnvVarError,
+    ParseListeningAddressFailed,
+    NotAuthed,
+    SledGenIdFailed,
+    SledSaveFailed,
+    SledDbError,
+    SqliteDbError,
+    SerdeError,
+
+    // business
+    LoginFailed,
+    SaveBlogFailed,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ErrorResponse {
     pub message: String,
 }
 
-impl std::fmt::Display for Err {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        unimplemented!()
-    }
-}
+// impl std::fmt::Display for ErrResponse {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         unimplemented!()
+//     }
+// }
 
-impl std::error::Error for Err {}
+// impl std::error::Error for ErrResponse {}
 
-impl From<std::io::Error> for Err {
-    fn from(e: std::io::Error) -> Self {
-        unimplemented!()
-    }
-}
+impl warp::reject::Reject for Error {}
 
-impl From<std::env::VarError> for Err {
+// impl From<std::io::Error> for ErrResponse {
+//     fn from(e: std::io::Error) -> Self {
+//         unimplemented!()
+//     }
+// }
+
+impl From<std::env::VarError> for Error {
     fn from(e: std::env::VarError) -> Self {
-        unimplemented!()
+        eprintln!("{}", e);
+        Error::EnvVarError
     }
 }
 
-impl From<serde_json::error::Error> for Err {
+impl From<std::net::AddrParseError> for Error {
+    fn from(e: std::net::AddrParseError) -> Self {
+        eprintln!("{}", e);
+        Error::ParseListeningAddressFailed
+    }
+}
+
+impl From<serde_json::error::Error> for Error {
     fn from(e: serde_json::error::Error) -> Self {
-        unimplemented!()
+        eprintln!("{}", e);
+        Error::SerdeError
     }
 }
 
-impl From<sled::Error> for Err {
+impl From<sled::Error> for Error {
     fn from(e: sled::Error) -> Self {
-        let m = match e {
-            sled::Error::CollectionNotFound(v) => format!("The underlying collection no longer exists."),
-            sled::Error::Unsupported(s) => format!("The system has been used in an unsupported way {}.", s),
-            sled::Error::ReportableBug(s) => format!("An unexpected bug has happened. Please open an issue on github! {}", s),
-            sled::Error::Io(e) => format!("A read or write error has happened when interacting with the file system. {:?}", e),
-            sled::Error::Corruption{at, bt} => format!("Corruption has been detected in the storage file."),
-            // sled::Error::FailPoint => format!("a failpoint has been triggered for testing purposes"),
-        };
-        Err {
-            message: m,
-        }
+        eprintln!("{}", e);
+        Error::SledDbError
     }
 }
 
-impl From<sqlx::Error> for Err {
-    fn from(e: Error) -> Self {
-        let m = match e {
-            sqlx::Error::Io(e) => format!(""),
-            _ => format!(""),
-        };
-        Err {
-            message: m,
-        }
+impl From<sqlx::Error> for Error {
+    fn from(e: sqlx::Error) -> Self {
+        eprintln!("{}", e);
+        Error::SqliteDbError
     }
 }
 
-impl Err {
-    pub fn new(message: &str) -> Self {
-        Err {
-            message: String::from(message)
-        }
-    }
-}
+// impl ErrResponse {
+//     pub fn new(message: &str) -> Self {
+//         ErrResponse {
+//             message: String::from(message)
+//         }
+//     }
+// }

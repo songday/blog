@@ -1,43 +1,71 @@
-use tide::{Request, Response, StatusCode, Result};
-use tide::http::Body;
+use std::result::Result;
+use std::convert::Infallible;
+
+use warp::{http::StatusCode, reject, Reply, Rejection};
 
 use crate::db::DataSource;
-use crate::model::Blog;
+use crate::model::{Blog, User};
+use crate::service;
+use crate::result::{Error, ErrorResponse};
 
-lazy_static_include_bytes!(INDEX_PAGE_BYTES, "./src/asset/index.html");
+lazy_static_include_str!(INDEX_PAGE_BYTES, "./src/asset/index.html");
 
-pub async fn index(_req: Request<DataSource>) -> Result<Response> {
-    let mut res = Response::new(StatusCode::Ok);
-    res.set_body(*INDEX_PAGE_BYTES);
-    Ok(res)
-}
+pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
+    let code;
+    let message;
 
-pub async fn about(_req: Request<DataSource>) -> Result<Response> {
-    let mut res = Response::new(StatusCode::Ok);
-    let b = include_bytes!("asset/about.html");
-    res.set_body(Body::from_bytes(b.to_vec()));
-    Ok(res)
-}
-
-pub async fn blog_list(req: Request<DataSource>) -> Result<Response> {
-    // 下面两行
-    // let p : CatelogRequest = req.body_json().await.unwrap();
-    let p = match req.query::<Blog>() {
-        Ok(r) => r,
-        Err(e) => {
-            println!("{:?}", e);
-            return Result::Err(e)
+    if err.is_not_found() {
+        code = StatusCode::NOT_FOUND;
+        message = "Not Found";
+    } else if let Some(_) = err.find::<warp::filters::body::BodyDeserializeError>() {
+        code = StatusCode::BAD_REQUEST;
+        message = "Invalid Body";
+    } else if let Some(_) = err.find::<warp::reject::MethodNotAllowed>() {
+        code = StatusCode::METHOD_NOT_ALLOWED;
+        message = "Method Not Allowed";
+    } else if let Some(e) = err.find::<crate::result::Error>() {
+        match e {
+            // Error::DBQueryError(_) => {
+            //     code = StatusCode::BAD_REQUEST;
+            //     message = "Could not Execute request";
+            // }
+            _ => {
+                eprintln!("unhandled application error: {:?}", err);
+                code = StatusCode::INTERNAL_SERVER_ERROR;
+                message = "Internal Server Error";
+            }
         }
-    };
-    let mut res = Response::new(StatusCode::Ok);
-    res.set_body(format!("{:?}", p));
-    Ok(res)
+    } else {
+        eprintln!("unhandled error: {:?}", err);
+        code = StatusCode::INTERNAL_SERVER_ERROR;
+        message = "Internal Server Error";
+    }
+
+    let json = warp::reply::json(&ErrorResponse {
+        message: message.into(),
+    });
+
+    Ok(warp::reply::with_status(json, code))
 }
 
-pub async fn blog_save(mut req: Request<DataSource>) -> Result<Response> {
-    let mut blog: Blog = req.body_json().await?;
-    blog.save(req.state()).await?;
-    let mut res = Response::new(StatusCode::Ok);
-    res.set_body(format!("{:?}", blog));
-    Ok(res)
+pub async fn index() -> Result<impl Reply, Rejection> {
+    Ok(warp::reply::html(*INDEX_PAGE_BYTES))
+}
+
+pub async fn about() -> Result<impl Reply, Rejection> {
+    let s = include_str!("asset/about.html");
+    Ok(warp::reply::html(s))
+}
+
+pub async fn blog_list(datasource: DataSource, page_num: i32) -> Result<impl Reply, Rejection> {
+    let result = service::blog_list(&datasource, page_num).await;
+    match result {
+        Ok(list) => Ok(warp::reply::json(&list)),
+        Err(e) => Err(reject::custom(e))
+    }
+}
+
+pub async fn blog_save(user: User, datasource: DataSource, mut blog: Blog) -> Result<impl Reply, Rejection> {
+    datasource.blog_save(&mut blog).await.map_err(|e| reject::custom(e))?;
+    Ok(warp::reply::json(&blog))
 }

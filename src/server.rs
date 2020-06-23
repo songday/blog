@@ -1,20 +1,53 @@
-use tide::{self, Server};
+use std::convert::Infallible;
+use std::net::SocketAddr;
 
-use crate::{controller, db::{self, DataSource}, result};
+use warp::{self, Filter, Reply, reject, Rejection};
 
-pub async fn start(address:&str) -> result::Result<()> {
-    let mut app = tide::with_state(db::get_datasource().await?);
-    setup_route(&mut app);
-    app.listen(address).await?;
-    Ok(())
+use crate::{controller, db::{self, DataSource}, result::{self, Error}, service};
+use crate::model::User;
+
+fn with_db(datasource: DataSource) -> impl Filter<Extract = (DataSource,), Error = Infallible> + Clone {
+    warp::any().map(move || datasource.clone())
 }
 
-fn setup_route(app: &mut Server<DataSource>) {
-    app.at("/").get(controller::index);
-    app.at("/index").get(controller::index);
-    app.at("/about").get(controller::about);
-    app.at("/blog/save").get(controller::blog_save);
-    // app.at("/items").get(handler::get_items);
-    // app.at("/s").get(handler::scrape);
-    // app.at("/hello").get(|_| async move { Ok("Hello, world!") });
+fn check_auth() -> impl Filter<Extract = (User,), Error = Rejection> + Clone {
+    warp::header::<String>("x-auth").and_then(|token: String| async move {
+        service::check_auth(&token).map_err(|e| reject::custom(e))
+    })
+}
+
+pub async fn start(address:&str) -> result::Result<()> {
+    let datasource = db::get_datasource().await?;
+
+    let index = warp::get()
+        .and(warp::path::end())
+        .and(warp::path::end())
+        .and_then(controller::index);
+    let about = warp::get()
+        .and(warp::path("about"))
+        .and(warp::path::end())
+        .and_then(controller::about);
+    let blog_list = warp::get()
+        .and(warp::path("blog"))
+        .and(warp::path("list"))
+        .and(warp::path::end())
+        .and(with_db(datasource.clone()))
+        .and(warp::query::<i32>())
+        .and_then(controller::blog_list);
+    let blog_save = warp::post()
+        .and(warp::path("blog"))
+        .and(warp::path("save"))
+        .and(warp::path::end())
+        .and(check_auth())
+        .and(with_db(datasource.clone()))
+        .and(warp::body::json())
+        .and_then(controller::blog_save);
+
+    let routes = index.or(about).or(blog_list).or(blog_save)
+            .with(warp::cors().allow_any_origin())
+            .recover(controller::handle_rejection)
+        ;
+    let addr = address.parse::<SocketAddr>()?;
+    warp::serve(routes).run(addr).await;
+    Ok(())
 }

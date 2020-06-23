@@ -1,8 +1,7 @@
-use async_std::task;
-
 use blog::{server, result};
 
-fn main() -> result::Result<()> {
+#[tokio::main]
+async fn main() {
     println!("Web server");
-    task::block_on(server::start("127.0.0.1:9270"))
+    server::start("127.0.0.1:9270").await;
 }
