@@ -11,6 +11,7 @@ pub struct User {
     pub username: String,
     pub password: String,
     pub created_at: u64,
+    pub access_token: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

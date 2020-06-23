@@ -19,6 +19,7 @@ pub enum Error {
     // business
     LoginFailed,
     SaveBlogFailed,
+    CannotFoundBlog,
 }
 
 #[derive(Serialize, Deserialize)]

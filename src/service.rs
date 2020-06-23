@@ -28,14 +28,16 @@ pub async fn user_login(datasource: &DataSource, username: &str, password: &str)
     if username.len() < 3 || password.len() < 5 {
         return Err(Error::LoginFailed);
     }
-    datasource.user_login(username, password).await
+    let u = datasource.user_login(username, password).await?;
+    let _ = ONLINE_USER.write().insert(u.access_token.clone(), u.clone());
+    Ok(u)
 }
 
 pub async fn blog_list(datasource: &DataSource, mut page_num: i32) -> Result<Vec<Blog>> {
     if page_num < 1 {
         page_num = 1;
     }
-    datasource.blog_list(page_num).await
+    datasource.blog_list((page_num - 1) * crate::vars::BLOG_PAGE_SIZE).await
 }
 
 pub async fn blog_save(datasource: &DataSource, mut blog: Blog) -> Result<Blog> {

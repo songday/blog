@@ -3,6 +3,7 @@ use std::time::SystemTime;
 
 use sqlx::prelude::*;
 use sqlx::SqlitePool;
+use uuid::Uuid;
 use warp::reject;
 
 use crate::model::{Blog, User};
@@ -25,8 +26,8 @@ struct Id {
 pub async fn get_datasource() -> Result<DataSource> {
     let p = SqlitePool::builder().min_size(5).max_size(50).build(&env::var("DATABASE_URL")?).await?;
     Ok(DataSource {
-        user: sled::open("db/user.db").expect("open"),
-        blog: sled::open("db/blog.db").expect("open"),
+        user: sled::open("db/user").expect("open"),
+        blog: sled::open("db/blog").expect("open"),
         sqlite: p,
     })
 }
@@ -60,10 +61,11 @@ async fn sled_get_list<T>(db: &sled::Db, id_array: &Vec<i64>) -> Result<Vec<T>> 
     Ok(list)
 }
 
-async fn sqlite_get_blog_id_array(pool: &SqliteConnPool, page_num: i32) -> Result<Vec<i64>> {
+async fn sqlite_get_blog_id_array(pool: &SqliteConnPool, offset: i32) -> Result<Vec<i64>> {
     // let rows: Vec<Id> = sqlx::query_as!(Id, "SELECT id FROM blog ORDER BY id").fetch_all(&d.sqlite).await?;
     // let mut conn = d.sqlite.acquire().await?;
-    let rows = sqlx::query_as::<_, Id>("SELECT id FROM blog LIMIT ?,? ORDER BY id").fetch_all(pool).await?;
+    let rows = sqlx::query_as::<_, Id>("SELECT id FROM blog LIMIT ?,? ORDER BY id")
+        .bind(offset).bind(crate::vars::BLOG_PAGE_SIZE).fetch_all(pool).await?;
     let mut d: Vec<i64> = Vec::with_capacity(rows.len());
     for row in rows {
         println!(
@@ -81,16 +83,18 @@ impl DataSource {
         if r.is_none() {
             return Err(Error::LoginFailed);
         }
-        let u = r.unwrap();
-        if u.password == password {
+        let mut u = r.unwrap();
+        if crate::crypt::verify_password(password, &u.password) {
+            let uuid = Uuid::new_v5(&Uuid::NAMESPACE_URL, username.as_bytes());
+            u.access_token = String::from("abc");
             Ok(u)
         } else {
             Err(Error::LoginFailed)
         }
     }
 
-    pub async fn blog_list(&self, page_num: i32) -> Result<Vec<Blog>> {
-        let id_array = sqlite_get_blog_id_array(&self.sqlite, page_num).await?;
+    pub async fn blog_list(&self, offset: i32) -> Result<Vec<Blog>> {
+        let id_array = sqlite_get_blog_id_array(&self.sqlite, offset).await?;
         sled_get_list(&self.blog, &id_array).await
     }
 
@@ -108,5 +112,14 @@ impl DataSource {
         // let b: Option<Blog> = sled_get(d, 100).await?;
         let serialized = serde_json::to_string(blog).unwrap();
         sled_save(&self.blog, blog.id.to_le_bytes(), &serialized).await
+    }
+
+    pub async fn blog_show(&self, id: u64) -> Result<Blog> {
+        let r: Option<Blog> = sled_get(&self.blog, id.to_le_bytes()).await?;
+        if r.is_none() {
+            Err(Error::CannotFoundBlog)
+        } else {
+            Ok(r.unwrap())
+        }
     }
 }
