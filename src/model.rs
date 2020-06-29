@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::db::{self, DataSource};
 use crate::result::Result;

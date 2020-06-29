@@ -1,14 +1,14 @@
-use std::result::Result;
 use std::convert::Infallible;
+use std::result::Result;
 
-use warp::{http::StatusCode, reject, Reply, Rejection};
+use warp::{http::StatusCode, reject, Rejection, Reply};
 
 use crate::db::DataSource;
 use crate::model::{Blog, User};
-use crate::service;
 use crate::result::{Error, ErrorResponse};
+use crate::service;
 
-lazy_static_include_str!(INDEX_PAGE_BYTES, "./src/asset/index.html");
+// lazy_static_include_str!(INDEX_PAGE_BYTES, "./src/asset/index.html");
 
 pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
     let code;
@@ -49,7 +49,8 @@ pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply,
 }
 
 pub async fn index() -> Result<impl Reply, Rejection> {
-    Ok(warp::reply::html(*INDEX_PAGE_BYTES))
+    let s = include_str!("asset/index.html");
+    Ok(warp::reply::html(s))
 }
 
 pub async fn about() -> Result<impl Reply, Rejection> {
@@ -58,7 +59,9 @@ pub async fn about() -> Result<impl Reply, Rejection> {
 }
 
 pub async fn user_login(datasource: DataSource, user: User) -> Result<impl Reply, Rejection> {
-    let u = service::user_login(&datasource, &user.username, &user.password).await.map_err(|e| reject::custom(e))?;
+    let u = service::user_login(&datasource, &user.username, &user.password)
+        .await
+        .map_err(|e| reject::custom(e))?;
     Ok(warp::reply::json(&u))
 }
 
@@ -66,16 +69,25 @@ pub async fn blog_list(datasource: DataSource, page_num: i32) -> Result<impl Rep
     let result = service::blog_list(&datasource, page_num).await;
     match result {
         Ok(list) => Ok(warp::reply::json(&list)),
-        Err(e) => Err(reject::custom(e))
+        Err(e) => Err(reject::custom(e)),
     }
 }
 
-pub async fn blog_save(_user: User, datasource: DataSource, blog: Blog) -> Result<impl Reply, Rejection> {
-    let blog = service::blog_save(&datasource, blog).await.map_err(|e| reject::custom(e))?;
+pub async fn blog_save(
+    _user: User,
+    datasource: DataSource,
+    blog: Blog,
+) -> Result<impl Reply, Rejection> {
+    let blog = service::blog_save(&datasource, blog)
+        .await
+        .map_err(|e| reject::custom(e))?;
     Ok(warp::reply::json(&blog))
 }
 
 pub async fn blog_show(datasource: DataSource, id: u64) -> Result<impl Reply, Rejection> {
-    let blog = datasource.blog_show(id).await.map_err(|e| reject::custom(e))?;
+    let blog = datasource
+        .blog_show(id)
+        .await
+        .map_err(|e| reject::custom(e))?;
     Ok(warp::reply::json(&blog))
 }

@@ -1,4 +1,4 @@
-use blog::{server, result};
+use blog::{result, server};
 
 #[tokio::main]
 async fn main() {

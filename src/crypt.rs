@@ -47,8 +47,13 @@ pub fn verify_password(password: &str, encrypted_password: &str) -> bool {
     };
 
     let mut output = vec![0u8; compared_password.len()];
-    scrypt(password.as_bytes(), &salt, &get_scrypt_params(), &mut output)
-        .expect("32 bytes always satisfy output length requirements");
+    scrypt(
+        password.as_bytes(),
+        &salt,
+        &get_scrypt_params(),
+        &mut output,
+    )
+    .expect("32 bytes always satisfy output length requirements");
 
     output.ct_eq(&compared_password).unwrap_u8() == 1
 }

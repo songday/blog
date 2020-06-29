@@ -1,4 +1,4 @@
-use serde::{export::Formatter, Serialize, Deserialize};
+use serde::{export::Formatter, Deserialize, Serialize};
 use warp::reject::Reject;
 
 pub type Result<T> = std::result::Result<T, Error>;

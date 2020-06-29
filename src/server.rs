@@ -1,12 +1,19 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
 
-use warp::{self, Filter, Reply, reject, Rejection};
+use warp::{self, reject, Filter, Rejection, Reply};
 
-use crate::{controller, db::{self, DataSource}, result::{self, Error}, service};
 use crate::model::User;
+use crate::{
+    controller,
+    db::{self, DataSource},
+    result::{self, Error},
+    service,
+};
 
-fn with_db(datasource: DataSource) -> impl Filter<Extract = (DataSource,), Error = Infallible> + Clone {
+fn with_db(
+    datasource: DataSource,
+) -> impl Filter<Extract = (DataSource,), Error = Infallible> + Clone {
     warp::any().map(move || datasource.clone())
 }
 
@@ -16,7 +23,7 @@ fn check_auth() -> impl Filter<Extract = (User,), Error = Rejection> + Clone {
     })
 }
 
-pub async fn start(address:&str) -> result::Result<()> {
+pub async fn start(address: &str) -> result::Result<()> {
     let datasource = db::get_datasource().await?;
 
     let index = warp::get()
@@ -57,10 +64,14 @@ pub async fn start(address:&str) -> result::Result<()> {
         .and(warp::query::<u64>())
         .and_then(controller::blog_show);
 
-    let routes = index.or(about).or(blog_list).or(user_login).or(blog_save).or(blog_show)
-            .with(warp::cors().allow_any_origin())
-            .recover(controller::handle_rejection)
-        ;
+    let routes = index
+        .or(about)
+        .or(blog_list)
+        .or(user_login)
+        .or(blog_save)
+        .or(blog_show)
+        .with(warp::cors().allow_any_origin())
+        .recover(controller::handle_rejection);
     let addr = address.parse::<SocketAddr>()?;
     warp::serve(routes).run(addr).await;
     Ok(())
