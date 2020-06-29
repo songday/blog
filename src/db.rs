@@ -3,10 +3,9 @@ use std::time::SystemTime;
 use sqlx::prelude::*;
 use sqlx::SqlitePool;
 use uuid::Uuid;
-use warp::reject;
 
 use crate::model::{Blog, User};
-use crate::result::{Error, ErrorResponse, Result};
+use crate::result::{Error, Result};
 
 type SqliteConnPool = sqlx::Pool<sqlx::sqlite::SqliteConnection>;
 
@@ -29,20 +28,26 @@ pub async fn get_datasource() -> Result<DataSource> {
         .build("sqlite://./data/all.db")
         .await?;
     Ok(DataSource {
-        user: sled::open("db/user").expect("open"),
-        blog: sled::open("db/blog").expect("open"),
+        user: sled::open("data/user").expect("open"),
+        blog: sled::open("data/blog").expect("open"),
         sqlite: p,
     })
 }
 
 async fn sled_gen_id(db: &sled::Db) -> Result<u64> {
-    db.generate_id().map_err(|e| Error::SledGenIdFailed)
+    db.generate_id().map_err(|e| {
+        eprintln!("{}", e);
+        Error::SledGenIdFailed
+    })
 }
 
 #[inline]
 async fn sled_save(db: &sled::Db, key: impl AsRef<[u8]>, value: &str) -> Result<usize> {
     db.insert(key, value)?;
-    db.flush_async().await.map_err(|e| Error::SledDbError)
+    db.flush_async().await.map_err(|e| {
+        eprintln!("{}", e);
+        Error::SledDbError
+    })
 }
 
 async fn sled_get<T>(db: &sled::Db, key: impl AsRef<[u8]>) -> Result<Option<T>>

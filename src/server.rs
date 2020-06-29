@@ -1,13 +1,13 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
 
-use warp::{self, reject, Filter, Rejection, Reply};
+use warp::{self, reject, Filter, Rejection};
 
 use crate::model::User;
 use crate::{
     controller,
     db::{self, DataSource},
-    result::{self, Error},
+    result::{self},
     service,
 };
 

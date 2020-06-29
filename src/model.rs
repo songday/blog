@@ -1,9 +1,4 @@
-use std::time::SystemTime;
-
 use serde::{Deserialize, Serialize};
-
-use crate::db::{self, DataSource};
-use crate::result::Result;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {

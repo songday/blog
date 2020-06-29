@@ -5,7 +5,7 @@ use warp::{http::StatusCode, reject, Rejection, Reply};
 
 use crate::db::DataSource;
 use crate::model::{Blog, User};
-use crate::result::{Error, ErrorResponse};
+use crate::result::{ErrorResponse};
 use crate::service;
 
 // lazy_static_include_str!(INDEX_PAGE_BYTES, "./src/asset/index.html");
