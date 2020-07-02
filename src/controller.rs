@@ -78,7 +78,8 @@ pub async fn about() -> Result<impl Reply, Rejection> {
 }
 
 pub async fn verify_image() -> Result<Response<Vec<u8>>, Rejection> {
-    let b = crate::image::image::gen_verify_image(&[1, 2, 3, 4]);
+    let numbers = crate::util::num::rand_numbers(4);
+    let b = crate::image::image::gen_verify_image(numbers.as_slice());
     warp::http::Response::builder()
         .header("content-type", "image/png")
         .body(b)

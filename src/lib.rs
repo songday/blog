@@ -11,4 +11,5 @@ pub mod model;
 pub mod result;
 pub mod server;
 pub mod service;
+pub mod util;
 pub mod vars;
