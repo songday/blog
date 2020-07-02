@@ -28,7 +28,6 @@ pub async fn start(address: &str) -> result::Result<()> {
 
     let index = warp::get()
         .and(warp::path::end())
-        .and(warp::path::end())
         .and_then(controller::index);
     let about = warp::get()
         .and(warp::path("about"))
@@ -41,6 +40,12 @@ pub async fn start(address: &str) -> result::Result<()> {
         .and(with_db(datasource.clone()))
         .and(warp::body::json())
         .and_then(controller::user_login);
+    let user_login = warp::get()
+        .and(warp::path("tool"))
+        .and(warp::path("verify-image"))
+        .and(warp::path::end())
+        // .and(warp::query::<&str>())
+        .and_then(controller::verify_image);
     let blog_list = warp::get()
         .and(warp::path("blog"))
         .and(warp::path("list"))
@@ -58,7 +63,7 @@ pub async fn start(address: &str) -> result::Result<()> {
         .and_then(controller::blog_save);
     let blog_show = warp::post()
         .and(warp::path("blog"))
-        .and(warp::path("save"))
+        .and(warp::path("show"))
         .and(warp::path::end())
         .and(with_db(datasource.clone()))
         .and(warp::query::<u64>())
@@ -66,8 +71,8 @@ pub async fn start(address: &str) -> result::Result<()> {
 
     let routes = index
         .or(about)
-        .or(blog_list)
         .or(user_login)
+        .or(blog_list)
         .or(blog_save)
         .or(blog_show)
         .with(warp::cors().allow_any_origin())

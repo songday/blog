@@ -11,6 +11,8 @@ name = "blog"
 
 [dependencies]
 base64 = "0.12"
+ctrlc = { version = "3.0", features = ["termination"] }
+image = "0.23.6"
 lazy_static = "1.4.0"
 lazy-static-include = "2.2.2"
 parking_lot = "0.10"
@@ -25,6 +27,7 @@ tokio = { version = "0.2", features = ["macros"] }
 uuid = { version = "0.8", features = ["v5"] }
 warp = "0.2"
 
+# https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#platform-specific-dependencies
 # https://doc.rust-lang.org/reference/conditional-compilation.html
 [target.'cfg(target_env = "gnu")'.dependencies]
 [target.'cfg(target_env = "musl")'.dependencies]

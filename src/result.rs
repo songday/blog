@@ -6,9 +6,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     // system
-    EnvVarError,
+    // EnvVarError,
     ParseListeningAddressFailed,
-    NotAuthed,
     SledGenIdFailed,
     SledSaveFailed,
     SledDbError,
@@ -16,6 +15,7 @@ pub enum Error {
     SerdeError,
 
     // business
+    NotAuthed,
     LoginFailed,
     SaveBlogFailed,
     CannotFoundBlog,
@@ -42,12 +42,12 @@ impl warp::reject::Reject for Error {}
 //     }
 // }
 
-impl From<std::env::VarError> for Error {
-    fn from(e: std::env::VarError) -> Self {
-        eprintln!("{}", e);
-        Error::EnvVarError
-    }
-}
+// impl From<std::env::VarError> for Error {
+//     fn from(e: std::env::VarError) -> Self {
+//         eprintln!("{}", e);
+//         Error::EnvVarError
+//     }
+// }
 
 impl From<std::net::AddrParseError> for Error {
     fn from(e: std::net::AddrParseError) -> Self {

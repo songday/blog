@@ -1,11 +1,14 @@
 use std::convert::Infallible;
 use std::result::Result;
 
-use warp::{http::StatusCode, reject, Rejection, Reply};
+use warp::{
+    http::{Response, StatusCode},
+    reject, Rejection, Reply,
+};
 
 use crate::db::DataSource;
 use crate::model::{Blog, User};
-use crate::result::{ErrorResponse};
+use crate::result::{Error, ErrorResponse};
 use crate::service;
 
 // lazy_static_include_str!(INDEX_PAGE_BYTES, "./src/asset/index.html");
@@ -25,6 +28,22 @@ pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply,
         message = "Method Not Allowed";
     } else if let Some(e) = err.find::<crate::result::Error>() {
         match e {
+            Error::NotAuthed => {
+                code = StatusCode::BAD_REQUEST;
+                message = "需要登录";
+            }
+            Error::LoginFailed => {
+                code = StatusCode::BAD_REQUEST;
+                message = "登录失败";
+            }
+            Error::SaveBlogFailed => {
+                code = StatusCode::BAD_REQUEST;
+                message = "保存博客失败";
+            }
+            Error::CannotFoundBlog => {
+                code = StatusCode::BAD_REQUEST;
+                message = "未找到博客";
+            }
             // Error::DBQueryError(_) => {
             //     code = StatusCode::BAD_REQUEST;
             //     message = "Could not Execute request";
@@ -49,13 +68,24 @@ pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply,
 }
 
 pub async fn index() -> Result<impl Reply, Rejection> {
-    let s = include_str!("asset/index.html");
+    let s = include_str!("asset/page/index.html");
     Ok(warp::reply::html(s))
 }
 
 pub async fn about() -> Result<impl Reply, Rejection> {
-    let s = include_str!("asset/about.html");
+    let s = include_str!("asset/page/about.html");
     Ok(warp::reply::html(s))
+}
+
+pub async fn verify_image() -> Result<Response<Vec<u8>>, Rejection> {
+    let b = crate::image::image::gen_verify_image(&[1, 2, 3, 4]);
+    warp::http::Response::builder()
+        .header("content-type", "image/png")
+        .body(b)
+        .map_err(|e| {
+            eprintln!("{}", e);
+            reject::custom(Error::SerdeError)
+        })
 }
 
 pub async fn user_login(datasource: DataSource, user: User) -> Result<impl Reply, Rejection> {
