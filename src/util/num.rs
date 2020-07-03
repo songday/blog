@@ -1,23 +1,18 @@
 use std::vec::Vec;
 
-const NUMERIC: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+use rand::{thread_rng, Rng};
 
-pub fn rand_number<T, N>(min: N, max: N) -> T
+// const NUMERIC: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+
+pub fn rand_numbers<T, N>(low: N, high: N, amount: usize) -> Vec<T>
 where
     T: rand::distributions::uniform::SampleUniform,
-    N: rand::distributions::uniform::SampleBorrow<T>,
+    N: rand::distributions::uniform::SampleBorrow<T> + Copy,
 {
-    use rand::{thread_rng, Rng};
-
+    let mut d = Vec::<T>::with_capacity(amount);
     let mut rng = thread_rng();
-    rng.gen_range(min, max)
-}
-
-pub fn rand_numbers(amount: usize) -> Vec<u8> {
-    let mut d = Vec::with_capacity(amount);
-    for n in 0..amount {
-        let n: u8 = rand_number(0, 10);
-        d.push(n);
+    for _n in 0..amount {
+        d.push(rng.gen_range(low, high))
     }
     d
 }

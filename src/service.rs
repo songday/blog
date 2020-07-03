@@ -1,11 +1,12 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use parking_lot::RwLock;
 
-use crate::db::DataSource;
-use crate::model::{Blog, User};
-use crate::result::{Error, Result};
+use crate::{
+    db::DataSource,
+    model::{Blog, User},
+    result::{Error, Result},
+};
 
 type OnlineUsers = HashMap<String, User>;
 
@@ -29,9 +30,7 @@ pub async fn user_login(datasource: &DataSource, username: &str, password: &str)
         return Err(Error::LoginFailed);
     }
     let u = datasource.user_login(username, password).await?;
-    let _ = ONLINE_USER
-        .write()
-        .insert(u.access_token.clone(), u.clone());
+    let _ = ONLINE_USER.write().insert(u.access_token.clone(), u.clone());
     Ok(u)
 }
 
@@ -39,9 +38,7 @@ pub async fn blog_list(datasource: &DataSource, mut page_num: i32) -> Result<Vec
     if page_num < 1 {
         page_num = 1;
     }
-    datasource
-        .blog_list((page_num - 1) * crate::vars::BLOG_PAGE_SIZE)
-        .await
+    datasource.blog_list((page_num - 1) * crate::vars::BLOG_PAGE_SIZE).await
 }
 
 pub async fn blog_save(datasource: &DataSource, mut blog: Blog) -> Result<Blog> {

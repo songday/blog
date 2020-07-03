@@ -1,5 +1,4 @@
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 
 fn main() {
     let dest_path = Path::new("src/image").join("number_image.rs");
@@ -17,10 +16,7 @@ fn main() {
         groups.push_str(group_name);
         groups.push_str(",\n");
 
-        number_images.push_str(&format!(
-            "pub const {}: [NumberImage; 10] = [\n",
-            group_name
-        ));
+        number_images.push_str(&format!("pub const {}: [NumberImage; 10] = [\n", group_name));
         for i in 0..10 {
             number_images.push_str("    NumberImage {\n");
             number_images.push_str(&format!(

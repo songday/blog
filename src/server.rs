@@ -1,34 +1,28 @@
-use std::convert::Infallible;
-use std::net::SocketAddr;
+use std::{convert::Infallible, net::SocketAddr};
 
 use warp::{self, reject, Filter, Rejection};
 
-use crate::model::User;
 use crate::{
     controller,
     db::{self, DataSource},
+    model::User,
     result::{self},
     service,
 };
 
-fn with_db(
-    datasource: DataSource,
-) -> impl Filter<Extract = (DataSource,), Error = Infallible> + Clone {
+fn with_db(datasource: DataSource) -> impl Filter<Extract = (DataSource,), Error = Infallible> + Clone {
     warp::any().map(move || datasource.clone())
 }
 
 fn check_auth() -> impl Filter<Extract = (User,), Error = Rejection> + Clone {
-    warp::header::<String>("x-auth").and_then(|token: String| async move {
-        service::check_auth(&token).map_err(|e| reject::custom(e))
-    })
+    warp::header::<String>("x-auth")
+        .and_then(|token: String| async move { service::check_auth(&token).map_err(|e| reject::custom(e)) })
 }
 
 pub async fn start(address: &str) -> result::Result<()> {
     let datasource = db::get_datasource().await?;
 
-    let index = warp::get()
-        .and(warp::path::end())
-        .and_then(controller::index);
+    let index = warp::get().and(warp::path::end()).and_then(controller::index);
     let about = warp::get()
         .and(warp::path("about"))
         .and(warp::path::end())
@@ -44,7 +38,7 @@ pub async fn start(address: &str) -> result::Result<()> {
         .and(warp::path("tool"))
         .and(warp::path("verify-image"))
         .and(warp::path::end())
-        // .and(warp::query::<&str>())
+        .and(warp::query::<String>())
         .and_then(controller::verify_image);
     let blog_list = warp::get()
         .and(warp::path("blog"))

@@ -1,15 +1,16 @@
-use std::convert::Infallible;
-use std::result::Result;
+use std::{convert::Infallible, result::Result};
 
 use warp::{
     http::{Response, StatusCode},
     reject, Rejection, Reply,
 };
 
-use crate::db::DataSource;
-use crate::model::{Blog, User};
-use crate::result::{Error, ErrorResponse};
-use crate::service;
+use crate::{
+    db::DataSource,
+    model::{Blog, User},
+    result::{Error, ErrorResponse},
+    service,
+};
 
 // lazy_static_include_str!(INDEX_PAGE_BYTES, "./src/asset/index.html");
 
@@ -31,19 +32,19 @@ pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply,
             Error::NotAuthed => {
                 code = StatusCode::BAD_REQUEST;
                 message = "需要登录";
-            }
+            },
             Error::LoginFailed => {
                 code = StatusCode::BAD_REQUEST;
                 message = "登录失败";
-            }
+            },
             Error::SaveBlogFailed => {
                 code = StatusCode::BAD_REQUEST;
                 message = "保存博客失败";
-            }
+            },
             Error::CannotFoundBlog => {
                 code = StatusCode::BAD_REQUEST;
                 message = "未找到博客";
-            }
+            },
             // Error::DBQueryError(_) => {
             //     code = StatusCode::BAD_REQUEST;
             //     message = "Could not Execute request";
@@ -52,7 +53,7 @@ pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply,
                 eprintln!("unhandled application error: {:?}", err);
                 code = StatusCode::INTERNAL_SERVER_ERROR;
                 message = "Internal Server Error";
-            }
+            },
         }
     } else {
         eprintln!("unhandled error: {:?}", err);
@@ -77,8 +78,8 @@ pub async fn about() -> Result<impl Reply, Rejection> {
     Ok(warp::reply::html(s))
 }
 
-pub async fn verify_image() -> Result<Response<Vec<u8>>, Rejection> {
-    let numbers = crate::util::num::rand_numbers(4);
+pub async fn verify_image(id: String) -> Result<Response<Vec<u8>>, Rejection> {
+    let numbers = crate::util::num::rand_numbers(0, 10, 4);
     let b = crate::image::image::gen_verify_image(numbers.as_slice());
     warp::http::Response::builder()
         .header("content-type", "image/png")
@@ -104,11 +105,7 @@ pub async fn blog_list(datasource: DataSource, page_num: i32) -> Result<impl Rep
     }
 }
 
-pub async fn blog_save(
-    _user: User,
-    datasource: DataSource,
-    blog: Blog,
-) -> Result<impl Reply, Rejection> {
+pub async fn blog_save(_user: User, datasource: DataSource, blog: Blog) -> Result<impl Reply, Rejection> {
     let blog = service::blog_save(&datasource, blog)
         .await
         .map_err(|e| reject::custom(e))?;
@@ -116,9 +113,6 @@ pub async fn blog_save(
 }
 
 pub async fn blog_show(datasource: DataSource, id: u64) -> Result<impl Reply, Rejection> {
-    let blog = datasource
-        .blog_show(id)
-        .await
-        .map_err(|e| reject::custom(e))?;
+    let blog = datasource.blog_show(id).await.map_err(|e| reject::custom(e))?;
     Ok(warp::reply::json(&blog))
 }

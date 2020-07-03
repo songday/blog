@@ -1,12 +1,9 @@
 use base64;
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand::{rngs::OsRng, RngCore};
 use scrypt::{scrypt, ScryptParams};
 use subtle::ConstantTimeEq;
 
-fn get_scrypt_params() -> ScryptParams {
-    ScryptParams::new(6, 8, 1).unwrap()
-}
+fn get_scrypt_params() -> ScryptParams { ScryptParams::new(6, 8, 1).unwrap() }
 
 pub fn encrypt_password(password: &str) -> String {
     // code from scrypt::scrypt_simple
@@ -47,13 +44,8 @@ pub fn verify_password(password: &str, encrypted_password: &str) -> bool {
     };
 
     let mut output = vec![0u8; compared_password.len()];
-    scrypt(
-        password.as_bytes(),
-        &salt,
-        &get_scrypt_params(),
-        &mut output,
-    )
-    .expect("32 bytes always satisfy output length requirements");
+    scrypt(password.as_bytes(), &salt, &get_scrypt_params(), &mut output)
+        .expect("32 bytes always satisfy output length requirements");
 
     output.ct_eq(&compared_password).unwrap_u8() == 1
 }

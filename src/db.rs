@@ -1,11 +1,12 @@
 use std::time::SystemTime;
 
-use sqlx::prelude::*;
-use sqlx::SqlitePool;
+use sqlx::{prelude::*, SqlitePool};
 use uuid::Uuid;
 
-use crate::model::{Blog, User};
-use crate::result::{Error, Result};
+use crate::{
+    model::{Blog, User},
+    result::{Error, Result},
+};
 
 type SqliteConnPool = sqlx::Pool<sqlx::sqlite::SqliteConnection>;
 
