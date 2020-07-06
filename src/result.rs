@@ -36,11 +36,12 @@ pub struct ErrorResponse {
 
 impl warp::reject::Reject for Error {}
 
-// impl From<std::io::Error> for ErrResponse {
-//     fn from(e: std::io::Error) -> Self {
-//         unimplemented!()
-//     }
-// }
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        eprintln!("{}", e);
+        Error::ParseListeningAddressFailed
+    }
+}
 
 // impl From<std::env::VarError> for Error {
 //     fn from(e: std::env::VarError) -> Self {

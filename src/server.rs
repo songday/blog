@@ -1,5 +1,8 @@
 use std::{convert::Infallible, net::SocketAddr};
 
+use futures::future::Future;
+use tokio::sync::oneshot::Receiver;
+
 use warp::{self, reject, Filter, Rejection};
 
 use crate::{
@@ -19,9 +22,20 @@ fn check_auth() -> impl Filter<Extract = (User,), Error = Rejection> + Clone {
         .and_then(|token: String| async move { service::check_auth(&token).map_err(|e| reject::custom(e)) })
 }
 
-pub async fn start(address: &str) -> result::Result<()> {
-    let datasource = db::get_datasource().await?;
+pub async fn create_server(
+    address: &str,
+    receiver: Receiver<()>,
+) -> result::Result<(impl Future<Output = ()> + 'static)> {
+    let datasource = crate::db::get_datasource().await?;
+    let (_addr, server) = create_warp_server(address, datasource, receiver)?;
+    Ok(server)
+}
 
+fn create_warp_server(
+    address: &str,
+    datasource: DataSource,
+    receiver: Receiver<()>,
+) -> result::Result<(SocketAddr, impl Future<Output = ()> + 'static)> {
     let index = warp::get().and(warp::path::end()).and_then(controller::index);
     let about = warp::get()
         .and(warp::path("about"))
@@ -34,7 +48,7 @@ pub async fn start(address: &str) -> result::Result<()> {
         .and(with_db(datasource.clone()))
         .and(warp::body::json())
         .and_then(controller::user_login);
-    let user_login = warp::get()
+    let verify_image = warp::get()
         .and(warp::path("tool"))
         .and(warp::path("verify-image"))
         .and(warp::path::end())
@@ -66,12 +80,14 @@ pub async fn start(address: &str) -> result::Result<()> {
     let routes = index
         .or(about)
         .or(user_login)
+        .or(verify_image)
         .or(blog_list)
         .or(blog_save)
         .or(blog_show)
         .with(warp::cors().allow_any_origin())
         .recover(controller::handle_rejection);
     let addr = address.parse::<SocketAddr>()?;
-    warp::serve(routes).run(addr).await;
-    Ok(())
+    Ok(warp::serve(routes).bind_with_graceful_shutdown(addr, async {
+        receiver.await.ok();
+    }))
 }
