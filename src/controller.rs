@@ -1,4 +1,5 @@
 use std::{convert::Infallible, result::Result};
+use std::sync::Arc;
 
 use warp::{
     http::{Response, StatusCode},
@@ -90,14 +91,14 @@ pub async fn verify_image(id: String) -> Result<Response<Vec<u8>>, Rejection> {
         })
 }
 
-pub async fn user_login(datasource: DataSource, user: User) -> Result<impl Reply, Rejection> {
+pub async fn user_login(datasource: Arc<DataSource>, user: User) -> Result<impl Reply, Rejection> {
     let u = service::user_login(&datasource, &user.username, &user.password)
         .await
         .map_err(|e| reject::custom(e))?;
     Ok(warp::reply::json(&u))
 }
 
-pub async fn blog_list(datasource: DataSource, page_num: i32) -> Result<impl Reply, Rejection> {
+pub async fn blog_list(datasource: Arc<DataSource>, page_num: i32) -> Result<impl Reply, Rejection> {
     let result = service::blog_list(&datasource, page_num).await;
     match result {
         Ok(list) => Ok(warp::reply::json(&list)),
@@ -105,14 +106,14 @@ pub async fn blog_list(datasource: DataSource, page_num: i32) -> Result<impl Rep
     }
 }
 
-pub async fn blog_save(_user: User, datasource: DataSource, blog: Blog) -> Result<impl Reply, Rejection> {
+pub async fn blog_save(_user: User, datasource: Arc<DataSource>, blog: Blog) -> Result<impl Reply, Rejection> {
     let blog = service::blog_save(&datasource, blog)
         .await
         .map_err(|e| reject::custom(e))?;
     Ok(warp::reply::json(&blog))
 }
 
-pub async fn blog_show(datasource: DataSource, id: u64) -> Result<impl Reply, Rejection> {
+pub async fn blog_show(datasource: Arc<DataSource>, id: u64) -> Result<impl Reply, Rejection> {
     let blog = datasource.blog_show(id).await.map_err(|e| reject::custom(e))?;
     Ok(warp::reply::json(&blog))
 }

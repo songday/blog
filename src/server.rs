@@ -1,4 +1,5 @@
 use std::{convert::Infallible, net::SocketAddr};
+use std::sync::Arc;
 
 use futures::future::Future;
 use tokio::sync::oneshot::Receiver;
@@ -13,7 +14,7 @@ use crate::{
     service,
 };
 
-fn with_db(datasource: DataSource) -> impl Filter<Extract = (DataSource,), Error = Infallible> + Clone {
+fn with_db(datasource: Arc<DataSource>) -> impl Filter<Extract = (Arc<DataSource>,), Error = Infallible> + Clone {
     warp::any().map(move || datasource.clone())
 }
 
@@ -26,14 +27,14 @@ pub async fn create_server(
     address: &str,
     receiver: Receiver<()>,
 ) -> result::Result<(impl Future<Output = ()> + 'static)> {
-    let datasource = crate::db::get_datasource().await?;
+    let datasource = Arc::new(crate::db::get_datasource().await?);
     let (_addr, server) = create_warp_server(address, datasource, receiver)?;
     Ok(server)
 }
 
 fn create_warp_server(
     address: &str,
-    datasource: DataSource,
+    datasource: Arc<DataSource>,
     receiver: Receiver<()>,
 ) -> result::Result<(SocketAddr, impl Future<Output = ()> + 'static)> {
     let index = warp::get().and(warp::path::end()).and_then(controller::index);

@@ -11,7 +11,7 @@ name = "blog"
 
 [dependencies]
 base64 = "0.12"
-ctrlc = { version = "3.0", features = ["termination"] }
+# ctrlc = { version = "3.0", features = ["termination"] }
 futures = "0.3"
 image = "0.23.6"
 lazy_static = "1.4.0"
